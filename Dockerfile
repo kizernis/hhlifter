@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y tzdata && \
 
 WORKDIR /app
 
-RUN pip install patchright==1.56
+RUN pip install --no-cache-dir patchright==1.56
 
 RUN patchright install chrome
 
