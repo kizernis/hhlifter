@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+celery
+redis
+pydantic-settings
+python-dotenv
+patchright==1.56

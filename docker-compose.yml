@@ -1,0 +1,65 @@
+services:
+  # База данных
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: tracker_db
+    ports:
+      - "5432:5432"
+    volumes:
+      # - postgres_data:/var/lib/postgresql/data
+      - ./db_data:/var/lib/postgresql/data # Данные базы будут в папке db_data
+
+  # Брокер очередей (тот самый "почтовый ящик")
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  # Инструмент для удобного просмотра базы данных (чтобы не мучиться в консоли)
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+
+  # Наш фоновый исполнитель
+  worker:
+    restart: always
+    build: .
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=1
+    volumes:
+      - .:/app
+      - ./browser_cache:/app/browser_cache
+    depends_on:
+      - redis
+      - db
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+      HH_LOGIN: ${HH_LOGIN}
+      HH_PASSWORD: ${HH_PASSWORD}
+  
+  # Будильник для Celery
+  beat:
+    restart: always
+    build: .
+    command: celery -A worker.celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - db
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+      HH_LOGIN: ${HH_LOGIN}
+      HH_PASSWORD: ${HH_PASSWORD}
+
+# volumes:
+#   postgres_data:
