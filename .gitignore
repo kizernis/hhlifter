@@ -4,3 +4,4 @@ __pycache__/
 browser_cache/
 *.db
 db_data/
+traces/

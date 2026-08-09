@@ -36,6 +36,7 @@ services:
     volumes:
       - .:/app
       - ./browser_cache:/app/browser_cache
+      - ./traces:/app/traces
     depends_on:
       - redis
       - db
