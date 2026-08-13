@@ -1,5 +1,4 @@
 services:
-  # База данных
   db:
     image: postgres:15
     restart: always
@@ -13,13 +12,11 @@ services:
       # - postgres_data:/var/lib/postgresql/data
       - ./db_data:/var/lib/postgresql/data # Данные базы будут в папке db_data
 
-  # Брокер очередей (тот самый "почтовый ящик")
   redis:
     image: redis:7
     ports:
       - "6379:6379"
 
-  # Инструмент для удобного просмотра базы данных (чтобы не мучиться в консоли)
   pgadmin:
     image: dpage/pgadmin4
     environment:
@@ -28,7 +25,21 @@ services:
     ports:
       - "8080:80"
 
-  # Наш фоновый исполнитель
+  api:
+    build: .
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+      - HH_LOGIN=${HH_LOGIN}
+      - HH_PASSWORD=${HH_PASSWORD}
   worker:
     restart: always
     build: .
@@ -37,6 +48,7 @@ services:
       - .:/app
       - ./browser_cache:/app/browser_cache
       - ./traces:/app/traces
+      - ./logs:/app/logs
     depends_on:
       - redis
       - db
@@ -53,6 +65,7 @@ services:
     command: celery -A worker.celery_app beat --loglevel=info
     volumes:
       - .:/app
+      - ./logs:/app/logs
     depends_on:
       - redis
       - db

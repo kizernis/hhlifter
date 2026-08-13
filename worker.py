@@ -6,19 +6,13 @@ from config import settings
 from celery.schedules import crontab
 from database import SessionLocal, engine
 import models
+from loguru import logger
+
+logger.add("logs/worker.log", rotation="10 MB", level="INFO")
 
 # models.Base.metadata.create_all(bind=engine)
 
 celery_app = Celery("worker", broker=settings.redis_url, backend=settings.redis_url)
-
-async def login_to_hh(page):
-    print("--- Аутентификация в HH ---")
-    await page.get_by_role("button", name="Войти").click()
-    await page.get_by_text("Почта").first.click()
-    await page.get_by_role("textbox").fill(settings.hh_login)
-    await page.get_by_role("button", name="Войти с паролем").click()
-    await page.get_by_role("textbox").fill(settings.hh_password)
-    await page.get_by_role("button", name="Войти", exact=True).click()
 
 async def lift_single_page(page, resume_hh_id, resume_name):
     url = f"https://hh.ru/resume/{resume_hh_id}"
@@ -27,7 +21,14 @@ async def lift_single_page(page, resume_hh_id, resume_name):
     btn_enter = page.get_by_role("main").get_by_role("button", name="Войти")
     if await btn_enter.is_visible():
         await btn_enter.click()
-        await login_to_hh(page)
+        logger.info("--- Аутентификация в HH ---")
+        await page.get_by_role("button", name="Войти").click()
+        await page.get_by_text("Почта").first.click()
+        await page.get_by_role("textbox").fill(settings.hh_login)
+        await page.get_by_role("button", name="Войти с паролем").click()
+        await page.get_by_role("textbox").fill(settings.hh_password)
+        await page.get_by_role("button", name="Войти", exact=True).click()
+        logger.success("--- Аутентификация прошла успешно ---")
 
     selector_yes = 'button[data-qa="resume-update-button"]'
     selector_no = 'a[data-qa="resumeservice-button__renewresume"]'
@@ -37,24 +38,25 @@ async def lift_single_page(page, resume_hh_id, resume_name):
         btn_update = page.locator(selector_yes)
         
         if await btn_update.is_visible():
-            print(f"!!! Поднимаю резюме {resume_name}")
-            # await btn_update.click()
-            await page.wait_for_timeout(2000)
+            logger.info(f"--- Поднимаю резюме {resume_name} ---")
+            await btn_update.click()
+            await page.wait_for_timeout(500)
+            logger.success(f"--- Резюме {resume_name} успешно поднято ---")
         else:
             info_text = page.locator('span[data-qa="cell-text-content"]')
             # На странице может быть несколько таких спанов, нам нужен тот, где есть время
             all_texts = await info_text.all_text_contents()
             for text in all_texts:
                 if "Можно сегодня в" in text or "Можно завтра в" in text:
-                    print(f"--- Инфо: {text} ---")
+                    logger.info(f"--- Инфо: {text} ---")
                     # Тут можно распарсить время через регулярку или сплит
     except Exception as e:
-        print(f"Ошибка на странице {resume_name}: {e}")
+        logger.error(f"Ошибка на странице {resume_name}: {e}")
 
 async def run_mass_lift(resumes):
     async with async_playwright() as p:
         is_docker = os.path.exists("/.dockerenv")
-        user_data_dir = "/app/browser_cache" if is_docker else os.path.join(os.getcwd(), "browser_cache")
+        user_data_dir = "/app/browser_cache" if is_docker else os.path.join(os.getcwd(), "browser_cache_win")
 
         docker_args = [
             '--no-sandbox', 
@@ -71,29 +73,27 @@ async def run_mass_lift(resumes):
                 no_viewport=True,
                 chromium_sandbox=not is_docker, # для запуска в Windows?
                 args=docker_args,
-                ignore_default_args=['--disable-blink-features=AutomationControlled'],
+                # ignore_default_args=['--disable-blink-features=AutomationControlled'],
             )
 
             await context.tracing.start(screenshots=True, snapshots=True, sources=True)
 
             scout_page = await context.new_page()
             try:
-                print(f"--- Разведка: проверяю логин на примере {resumes[0].name} ---")
+                logger.info(f"--- Разведка: проверяю логин на примере {resumes[0].name} ---")
                 await lift_single_page(scout_page, resumes[0].hh_resume_id, resumes[0].name)
             finally:
                 await scout_page.close()
 
+            # Для Python >= 3.11
             # async with asyncio.TaskGroup() as tg:
             #     for res in resumes[1:]:
             #         tg.create_task(process_resume_in_parallel(context, res))
 
-            # Создаем список задач для всех оставшихся резюме
             tasks = []
             for res in resumes[1:]:
                 tasks.append(process_resume_in_parallel(context, res))
             
-            # Запускаем все задачи одновременно и ждем их выполнения
-            # *tasks — это "распаковка" списка в аргументы функции
             await asyncio.gather(*tasks)
         finally:
             if context is not None:
@@ -105,10 +105,10 @@ async def process_resume_in_parallel(context, res_data):
     page = await context.new_page()
     try:
         # Блокировка картинок для скорости
-        # await page.route('**/*', lambda r: r.abort() if r.request.resource_type in ['image', 'media'] else r.continue_())
+        await page.route('**/*', lambda r: r.abort() if r.request.resource_type in ['image', 'media'] else r.continue_())
         await lift_single_page(page, res_data.hh_resume_id, res_data.name)
     except Exception as e:
-        print(f"Ошибка в параллельном потоке {res_data.name}: {e}")
+        logger.error(f"Ошибка в параллельном потоке {res_data.name}: {e}")
     finally:
         await page.close()
 

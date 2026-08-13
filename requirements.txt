@@ -7,3 +7,4 @@ redis
 pydantic-settings
 python-dotenv
 patchright==1.56
+loguru

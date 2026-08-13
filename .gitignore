@@ -6,3 +6,4 @@ browser_cache/
 db_data/
 traces/
 *.txt
+logs/

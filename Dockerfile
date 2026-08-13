@@ -1,7 +1,5 @@
-# Берем образ от Microsoft, в нем уже есть ВСЕ зависимости для браузеров
 FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy
 
-# Указываем, что установка должна быть неинтерактивной
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Europe/Moscow
 RUN apt-get update && apt-get install -y tzdata && \
