@@ -7,9 +7,9 @@ from loguru import logger
 
 logger.add("logs/api.log", rotation="10 MB", level="INFO")
 
-logger.info("--- Создаю таблицы в базе данных ---")
-models.Base.metadata.create_all(bind=engine)
-logger.success("--- Таблицы созданы (если их не было) ---")
+# logger.info("--- Создаю таблицы в базе данных ---")
+# models.Base.metadata.create_all(bind=engine)
+# logger.success("--- Таблицы созданы (если их не было) ---")
 
 app = FastAPI()
 
