@@ -39,7 +39,7 @@ async def lift_single_page(page, resume_hh_id, resume_name):
         
         if await btn_update.is_visible():
             logger.info(f"--- Поднимаю резюме {resume_name} ---")
-            await btn_update.click()
+            # await btn_update.click()
             await page.wait_for_timeout(500)
             logger.success(f"--- Резюме {resume_name} успешно поднято ---")
         else:

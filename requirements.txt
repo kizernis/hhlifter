@@ -9,3 +9,5 @@ python-dotenv
 patchright==1.56
 loguru
 alembic
+pytest
+httpx
